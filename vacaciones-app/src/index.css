@@ -1,0 +1,134 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/inter";
+
+@custom-variant dark (&:is(.dark *));
+* { box-sizing: border-box; }
+body { margin: 0; }
+
+/* Estilos viejos, en CSS plano: solo aplican dentro de pantallas aún no
+   migradas a Tailwind/shadcn, marcadas con className="legado". Según
+   vayamos rediseñando cada pantalla, le quitamos esta clase y se pueden
+   borrar estas reglas cuando ya no quede ninguna usándolas. */
+.legado .contenedor { max-width: 960px; margin: 0 auto; padding: 24px; }
+.legado.pantalla-centrada, .legado .pantalla-centrada { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+.legado .tarjeta { background: white; border-radius: 12px; padding: 24px; width: 280px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+.legado .barra { display: flex; gap: 8px; margin-bottom: 16px; }
+.legado label { font-size: 12px; color: #6b6b68; display: block; margin: 8px 0 4px; }
+.legado input, .legado select { width: 100%; padding: 8px; border: 1px solid #d4d4d1; border-radius: 6px; font-size: 14px; }
+.legado button { padding: 8px 14px; border: none; border-radius: 6px; background: #1a1a19; color: white; cursor: pointer; font-size: 13px; margin: 8px 8px 8px 0; }
+.legado button:hover { opacity: 0.9; }
+.legado table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; margin-top: 8px; }
+.legado th, .legado td { text-align: left; padding: 10px 12px; font-size: 13px; border-top: 1px solid #eceae6; }
+.legado th { color: #6b6b68; font-weight: 500; }
+.legado .secundario { color: #6b6b68; font-size: 13px; }
+.legado .error { color: #b3261e; font-size: 13px; }
+.legado .pantalla-centrada-parcial { display: flex; justify-content: center; margin: 16px 0; }
+.legado .volver {
+  display: inline-block;
+  color: #6b6b68;
+  text-decoration: none;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+.legado .volver:hover { color: #262624; text-decoration: underline; }
+.legado .enlace-tabla { color: #262624; text-decoration: none; font-weight: 500; }
+.legado .enlace-tabla:hover { text-decoration: underline; }
+.legado.barra-superior, .legado .barra-superior {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #1a1a19;
+  color: white;
+  padding: 12px 24px;
+  font-size: 14px;
+}
+.legado .barra-superior button { background: transparent; border: 1px solid #4a4a47; margin: 0; }
+.legado .barra-superior button:hover { background: #2a2a27; }
+
+@theme inline { --font-heading: var(--font-sans); --font-sans: 'Inter Variable', sans-serif; --color-sidebar-ring: var(--sidebar-ring); --color-sidebar-border: var(--sidebar-border); --color-sidebar-accent-foreground: var(--sidebar-accent-foreground); --color-sidebar-accent: var(--sidebar-accent); --color-sidebar-primary-foreground: var(--sidebar-primary-foreground); --color-sidebar-primary: var(--sidebar-primary); --color-sidebar-foreground: var(--sidebar-foreground); --color-sidebar: var(--sidebar); --color-chart-5: var(--chart-5); --color-chart-4: var(--chart-4); --color-chart-3: var(--chart-3); --color-chart-2: var(--chart-2); --color-chart-1: var(--chart-1); --color-ring: var(--ring); --color-input: var(--input); --color-border: var(--border); --color-destructive: var(--destructive); --color-destructive-foreground: var(--destructive-foreground); --color-success: var(--success); --color-success-foreground: var(--success-foreground); --color-warning: var(--warning); --color-warning-foreground: var(--warning-foreground); --color-accent-foreground: var(--accent-foreground); --color-accent: var(--accent); --color-muted-foreground: var(--muted-foreground); --color-muted: var(--muted); --color-secondary-foreground: var(--secondary-foreground); --color-secondary: var(--secondary); --color-primary-foreground: var(--primary-foreground); --color-primary: var(--primary); --color-popover-foreground: var(--popover-foreground); --color-popover: var(--popover); --color-card-foreground: var(--card-foreground); --color-card: var(--card); --color-foreground: var(--foreground); --color-background: var(--background); --radius-sm: calc(var(--radius) * 0.6); --radius-md: calc(var(--radius) * 0.8); --radius-lg: var(--radius); --radius-xl: calc(var(--radius) * 1.4); --radius-2xl: calc(var(--radius) * 1.8); --radius-3xl: calc(var(--radius) * 2.2); --radius-4xl: calc(var(--radius) * 2.6); }
+
+:root {
+  --background: #f7f7f5;
+  --foreground: #1a1a1a;
+  --card: #ffffff;
+  --card-foreground: #1a1a1a;
+  --popover: #ffffff;
+  --popover-foreground: #1a1a1a;
+  --primary: #1a1a1a;
+  --primary-foreground: #ffffff;
+  --secondary: #f1f1ee;
+  --secondary-foreground: #1a1a1a;
+  --muted: #f1f1ee;
+  --muted-foreground: #6b6b66;
+  --accent: #f1f1ee;
+  --accent-foreground: #1a1a1a;
+  --destructive: #b42318;
+  --destructive-foreground: #ffffff;
+  --success: #e8f5ec;
+  --success-foreground: #1f7a3d;
+  --warning: #fdf3e2;
+  --warning-foreground: #92610c;
+  --border: #e8e8e4;
+  --input: #e8e8e4;
+  --ring: #a8a8a2;
+  --radius: 0.625rem;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1a1a1a;
+  --sidebar-primary: #1a1a1a;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f1f1ee;
+  --sidebar-accent-foreground: #1a1a1a;
+  --sidebar-border: #e8e8e4;
+  --sidebar-ring: #a8a8a2;
+}
+
+.dark { --background: oklch(0.145 0 0); --foreground: oklch(0.985 0 0); --card: oklch(0.205 0 0); --card-foreground: oklch(0.985 0 0); --popover: oklch(0.205 0 0); --popover-foreground: oklch(0.985 0 0); --primary: oklch(0.922 0 0); --primary-foreground: oklch(0.205 0 0); --secondary: oklch(0.269 0 0); --secondary-foreground: oklch(0.985 0 0); --muted: oklch(0.269 0 0); --muted-foreground: oklch(0.708 0 0); --accent: oklch(0.269 0 0); --accent-foreground: oklch(0.985 0 0); --destructive: oklch(0.704 0.191 22.216); --border: oklch(1 0 0 / 10%); --input: oklch(1 0 0 / 15%); --ring: oklch(0.556 0 0); --chart-1: oklch(0.87 0 0); --chart-2: oklch(0.556 0 0); --chart-3: oklch(0.439 0 0); --chart-4: oklch(0.371 0 0); --chart-5: oklch(0.269 0 0); --sidebar: oklch(0.205 0 0); --sidebar-foreground: oklch(0.985 0 0); --sidebar-primary: oklch(0.488 0.243 264.376); --sidebar-primary-foreground: oklch(0.985 0 0); --sidebar-accent: oklch(0.269 0 0); --sidebar-accent-foreground: oklch(0.985 0 0); --sidebar-border: oklch(1 0 0 / 10%); --sidebar-ring: oklch(0.556 0 0); }
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50; }
+  body {
+    @apply bg-background text-foreground; }
+  html {
+    @apply font-sans; } }
+
+/* Microinteracción pedida: botones se comprimen un poco al hacer clic.
+   Se apunta a data-slot="button", el atributo que usan los componentes
+   de shadcn/ui generados por la CLI. */
+[data-slot="button"] {
+  transition: transform 120ms cubic-bezier(0.23, 1, 0.32, 1), background-color 150ms, opacity 150ms, color 150ms;
+}
+[data-slot="button"]:active {
+  transform: scale(0.97);
+}
+
+/* Respeta la preferencia del sistema de reducir animaciones */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+/* Microinteracción pedida: botones se comprimen un poco al hacer clic.
+   Se apunta a data-slot="button", el atributo que usan los componentes
+   de shadcn/ui generados por la CLI. */
+[data-slot="button"] {
+  transition: transform 120ms cubic-bezier(0.23, 1, 0.32, 1), background-color 150ms, opacity 150ms, color 150ms;
+}
+[data-slot="button"]:active {
+  transform: scale(0.97);
+}
+
+/* Respeta la preferencia del sistema de reducir animaciones */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

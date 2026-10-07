@@ -1,0 +1,10 @@
+appId: com.po.vacaciones
+productName: Gestion de Vacaciones
+files:
+  - electron/**/*
+  - dist/**/*
+  - package.json
+directories:
+  output: release
+win:
+  target: nsis
