@@ -9,6 +9,16 @@ function sumarDias(fechaISO, dias) {
   return f.toISOString().slice(0, 10);
 }
 
+// Fecha de hoy según el reloj de esta máquina, como 'YYYY-MM-DD'.
+// (toISOString() daría la fecha en UTC: en Colombia ya es "mañana" desde las 7 p. m.,
+// y un periodo se marcaría como vencido unas horas antes de tiempo.)
+function hoyLocalISO() {
+  const d = new Date();
+  const mes = String(d.getMonth() + 1).padStart(2, '0');
+  const dia = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${mes}-${dia}`;
+}
+
 // Crea un periodo nuevo: 15 días, estado inicial "Sin vencer"
 function generarPeriodo(trabajadorId, fechaCausacion) {
   const db = obtenerConexion();
@@ -49,7 +59,7 @@ function recalcularPeriodo(periodoId) {
     // Protegido: solo se mueve solo cuando se termina de disfrutar del todo
     if (diasPendientes === 0) estado = 'Disfrutado';
   } else {
-    const hoy = new Date().toISOString().slice(0, 10);
+    const hoy = hoyLocalISO();
     if (diasPendientes === 0) estado = 'Disfrutado';
     else if (hoy > periodoPagoFin) estado = 'Pendiente';
     else estado = 'Sin vencer';
@@ -63,6 +73,27 @@ function recalcularPeriodo(periodoId) {
   ).run(totalDiasDisfrutados, habilesDisfrutados, diasPendientes, periodoPagoFin, estado, periodoId);
 
   return db.prepare('SELECT * FROM periodos_vacaciones WHERE id = ?').get(periodoId);
+}
+
+// Un periodo se vence con el simple paso del tiempo, aunque nadie lo edite. Esto pasa a
+// "Pendiente" los periodos "Sin vencer" cuyo periodo_pago_fin ya quedó atrás. Es la única
+// transición que ocurre sola con los días; las demás pasan al crear/editar tomas, SC o LNR
+// y ahí ya se recalcula. Usa recalcularPeriodo para que la regla viva en un solo lugar.
+// Devuelve cuántos periodos cambiaron de estado.
+function actualizarEstadosPorVencimiento() {
+  const db = obtenerConexion();
+  const candidatos = db
+    .prepare("SELECT id FROM periodos_vacaciones WHERE estado = 'Sin vencer' AND periodo_pago_fin < ?")
+    .all(hoyLocalISO());
+
+  let cambiados = 0;
+  for (const { id } of candidatos) {
+    if (recalcularPeriodo(id).estado !== 'Sin vencer') cambiados++;
+  }
+  if (cambiados > 0) {
+    console.log(`Estados actualizados por vencimiento: ${cambiados} periodo(s)`);
+  }
+  return cambiados;
 }
 
 // Días pendientes disponibles para una toma nueva o editada, sin contar la toma que se está editando
@@ -82,7 +113,9 @@ function diasDisponiblesParaToma(periodoId, tomaIdExcluir) {
 module.exports = {
   generarPeriodo,
   recalcularPeriodo,
+  actualizarEstadosPorVencimiento,
   diasDisponiblesParaToma,
   sumarDias,
+  hoyLocalISO,
   DIAS_GENERADOS_POR_CICLO,
 };

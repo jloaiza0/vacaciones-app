@@ -17,6 +17,11 @@ export const api = {
   login: (usuario, password) =>
     solicitud('/auth/login', { method: 'POST', body: JSON.stringify({ usuario, password }) }),
   logout: () => solicitud('/auth/logout', { method: 'POST' }),
+  cambiarPassword: (passwordActual, passwordNueva) =>
+    solicitud('/auth/cambiar-password', {
+      method: 'POST',
+      body: JSON.stringify({ passwordActual, passwordNueva }),
+    }),
 
   listarTrabajadores: (estado = 'activos') => solicitud(`/trabajadores?estado=${estado}`),
   obtenerTrabajador: (id) => solicitud(`/trabajadores/${id}`),

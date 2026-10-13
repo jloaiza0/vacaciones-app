@@ -19,8 +19,8 @@ export default function Login({ onLogin }) {
     setError('');
     setCargando(true);
     try {
-      await api.login(usuario, password);
-      onLogin();
+      const respuesta = await api.login(usuario, password);
+      onLogin(Boolean(respuesta?.debeCambiarPassword));
       navegar('/');
     } catch (err) {
       setError(err.message);

@@ -24,6 +24,7 @@ function obtenerConexion() {
 
     migrarComentarios(instancia);
     migrarEstructuraGrande(instancia);
+    migrarPasswordForzado(instancia);
   }
   return instancia;
 }
@@ -161,6 +162,15 @@ function migrarEstructuraGrande(db) {
 
   correr();
   console.log('Migración grande completada.');
+}
+
+// Cambio obligatorio de contraseña: marca en la fila del usuario admin que, al iniciar
+// sesión, debe elegir una contraseña nueva (clave de fábrica o clave temporal de emergencia).
+function migrarPasswordForzado(db) {
+  if (!tieneColumna(db, 'usuario_admin', 'debe_cambiar_password')) {
+    db.exec('ALTER TABLE usuario_admin ADD COLUMN debe_cambiar_password INTEGER NOT NULL DEFAULT 0');
+    console.log('Migración: agregada columna debe_cambiar_password a usuario_admin');
+  }
 }
 
 module.exports = { obtenerConexion };
