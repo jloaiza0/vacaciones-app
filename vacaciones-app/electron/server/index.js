@@ -5,12 +5,14 @@ const bcrypt = require('bcryptjs');
 const { obtenerConexion } = require('./db/connection');
 const { requireAuth } = require('./middleware/auth');
 const { actualizarEstadosPorVencimiento } = require('./services/calculoVacaciones');
+const { asegurarRespaldoDiario } = require('./services/respaldos');
 
 const authRoutes = require('./routes/auth');
 const trabajadoresRoutes = require('./routes/trabajadores');
 const periodosRoutes = require('./routes/periodos');
 const consultaRoutes = require('./routes/consulta');
 const importadorRoutes = require('./routes/importador');
+const respaldosRoutes = require('./routes/respaldos');
 
 const PUERTO = process.env.PUERTO || 4321;
 const CLAVE_POR_DEFECTO = 'admin123'; // la misma que usa routes/auth.js
@@ -35,22 +37,27 @@ if (!admin) {
   console.log('La contraseña sigue siendo la de fábrica: se pedirá cambiarla al iniciar sesión.');
 }
 
-// Los periodos se vencen con el paso del tiempo aunque nadie los edite: se revisan al
-// arrancar y luego cada hora (por si el servidor queda encendido varios días seguidos).
-function revisarVencimientos() {
+// Tareas que se hacen al arrancar y luego cada hora (por si el servidor queda encendido
+// varios días seguidos):
+// 1) Los periodos se vencen con el paso del tiempo aunque nadie los edite.
+// 2) Respaldo diario de la base de datos (después de lo anterior, para que ya incluya
+//    los estados actualizados).
+function tareasPeriodicas() {
   try {
     actualizarEstadosPorVencimiento();
   } catch (err) {
     console.error('No se pudieron actualizar los estados por vencimiento:', err.message);
   }
+  asegurarRespaldoDiario().catch((err) => console.error('El respaldo diario falló:', err.message));
 }
-revisarVencimientos();
-setInterval(revisarVencimientos, 60 * 60 * 1000);
+tareasPeriodicas();
+setInterval(tareasPeriodicas, 60 * 60 * 1000);
 
 app.use('/api/auth', authRoutes);
 app.use('/api/trabajadores', requireAuth, trabajadoresRoutes);
 app.use('/api/periodos', requireAuth, periodosRoutes);
 app.use('/api/importador', requireAuth, importadorRoutes);
+app.use('/api/respaldos', requireAuth, respaldosRoutes);
 app.use('/api/consulta', consultaRoutes); // sin login: solo lectura, campos limitados
 
 // Sirve el front ya compilado (npm run build:web) cuando la app está empaquetada

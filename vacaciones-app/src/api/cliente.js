@@ -49,6 +49,9 @@ export const api = {
     solicitud(`/periodos/${id}/licencias/${licId}`, { method: 'PUT', body: JSON.stringify(datos) }),
   eliminarLicencia: (id, licId) => solicitud(`/periodos/${id}/licencias/${licId}`, { method: 'DELETE' }),
 
+  estadoRespaldos: () => solicitud('/respaldos/estado'),
+  respaldarAhora: () => solicitud('/respaldos/ahora', { method: 'POST' }),
+
   consultarTrabajadores: (q = '') => solicitud(`/consulta/trabajadores?q=${encodeURIComponent(q)}`),
   consultarTrabajador: (id) => solicitud(`/consulta/trabajadores/${id}`),
   consultarPeriodo: (id) => solicitud(`/consulta/periodos/${id}`),
