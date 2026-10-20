@@ -16,7 +16,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { formatearFecha, formatearDinero } from '@/lib/formato';
+import { formatearFecha, formatearDinero, formatearNumero } from '@/lib/formato';
 import { ArrowLeft, Plus, Pencil, UserX, UserCheck, ChevronRight, Loader2Icon, CalendarX } from 'lucide-react';
 
 const HOY = new Date().toISOString().slice(0, 10);
@@ -302,7 +302,7 @@ export default function FichaTrabajador() {
                   <td className="px-4 py-3">
                     <Badge className={badgeEstado(p.estado)}>{p.estado}</Badge>
                   </td>
-                  <td className="tabular-nums px-4 py-3 text-muted-foreground">{p.dias_pendientes}</td>
+                  <td className="tabular-nums px-4 py-3 text-muted-foreground">{formatearNumero(p.dias_pendientes)}</td>
                   <td className="px-4 py-3 text-right text-muted-foreground">
                     <span className="inline-flex items-center gap-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
                       Ver detalle <ChevronRight className="size-3.5" />

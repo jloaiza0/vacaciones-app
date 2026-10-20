@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
 import { DataRow } from '@/components/ui/data-row';
-import { formatearFecha, formatearDinero, pluralDias } from '@/lib/formato';
+import { formatearFecha, formatearDinero, formatearNumero, pluralDias } from '@/lib/formato';
 import { ArrowLeft, CalendarOff } from 'lucide-react';
 
 function badgeEstado(estado) {
@@ -70,7 +70,7 @@ export default function ConsultaPeriodo() {
       <div className="mb-8 grid grid-cols-2 gap-4 rounded-lg border border-border bg-card p-5 sm:grid-cols-4">
         <div>
           <p className="text-xs text-muted-foreground">Días pendientes</p>
-          <p className="tabular-nums text-3xl font-semibold text-foreground">{periodo.dias_pendientes}</p>
+          <p className="tabular-nums text-3xl font-semibold text-foreground">{formatearNumero(periodo.dias_pendientes)}</p>
         </div>
         <div>
           <p className="mb-1 text-xs text-muted-foreground">Estado</p>

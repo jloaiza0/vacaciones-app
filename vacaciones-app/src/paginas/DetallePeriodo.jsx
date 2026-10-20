@@ -17,7 +17,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { formatearFecha, formatearDinero, pluralDias } from '@/lib/formato';
+import { formatearFecha, formatearDinero, formatearNumero, pluralDias } from '@/lib/formato';
 import { ArrowLeft, Plus, Pencil, Trash2, Loader2Icon, CalendarOff } from 'lucide-react';
 
 function badgeEstado(estado) {
@@ -73,7 +73,7 @@ function FormularioRango({ valoresIniciales, onGuardar }) {
           />
         </Field>
       </div>
-      <Field label="Días">
+      <Field label="Días" hint="Días enteros: corren la fecha fin del periodo">
         <Input type="number" min="0" step="1" value={dias} onChange={(e) => setDias(e.target.value)} required />
       </Field>
       <Field label="Comentario">
@@ -87,22 +87,38 @@ function FormularioRango({ valoresIniciales, onGuardar }) {
   );
 }
 
-function FormularioToma({ valoresIniciales, salario, onGuardar }) {
+// Campo de texto para días con decimales. Acepta coma o punto (0,5 o 0.5) y hasta 2
+// decimales; no deja escribir negativos ni letras. Se usa texto y no type="number" porque
+// el campo numérico del navegador depende del idioma configurado y podría no aceptar la coma.
+function InputDecimal({ value, onChange, ...props }) {
+  return (
+    <Input
+      type="text"
+      inputMode="decimal"
+      autoComplete="off"
+      value={value}
+      onChange={(e) => {
+        const texto = e.target.value;
+        if (/^\d*[.,]?\d{0,2}$/.test(texto)) onChange(texto);
+      }}
+      {...props}
+    />
+  );
+}
+
+const aTexto = (numero) => (numero === undefined || numero === null ? '' : String(numero).replace('.', ','));
+const aNumero = (texto) => Number(String(texto).replace(',', '.')) || 0;
+
+function FormularioToma({ valoresIniciales, onGuardar }) {
   const [fecha_inicio, setInicio] = useState(valoresIniciales?.fecha_inicio || '');
   const [fecha_fin, setFin] = useState(valoresIniciales?.fecha_fin || '');
-  const [habilesDisfrutados, setHabilesDisfrutados] = useState(valoresIniciales?.habiles_disfrutados ?? '');
-  const [habilesPagos, setHabilesPagos] = useState(valoresIniciales?.habiles_pagos ?? '');
-  const [totalDiasDisfrutados, setTotalDiasDisfrutados] = useState(valoresIniciales?.total_dias_disfrutados ?? '');
+  const [habilesDisfrutados, setHabilesDisfrutados] = useState(aTexto(valoresIniciales?.habiles_disfrutados));
+  const [habilesPagos, setHabilesPagos] = useState(aTexto(valoresIniciales?.habiles_pagos));
+  const [totalDiasDisfrutados, setTotalDiasDisfrutados] = useState(aTexto(valoresIniciales?.total_dias_disfrutados));
   const [compensacion, setCompensacion] = useState(valoresIniciales?.compensacion_dinero ?? 0);
   const [comentario, setComentario] = useState(valoresIniciales?.comentario || '');
   const [error, setError] = useState('');
   const [cargando, setCargando] = useState(false);
-
-  function cambiarHabilesPagos(valor) {
-    setHabilesPagos(valor);
-    const numero = Number(valor) || 0;
-    setCompensacion(numero > 0 && salario ? Math.round(((salario / 30) * numero + Number.EPSILON) * 100) / 100 : 0);
-  }
 
   function soloPositivo(valor) {
     return valor === '' || (Number(valor) >= 0 && !isNaN(valor));
@@ -120,9 +136,9 @@ function FormularioToma({ valoresIniciales, salario, onGuardar }) {
       await onGuardar({
         fecha_inicio,
         fecha_fin,
-        habiles_disfrutados: Number(habilesDisfrutados) || 0,
-        habiles_pagos: Number(habilesPagos) || 0,
-        total_dias_disfrutados: Number(totalDiasDisfrutados) || 0,
+        habiles_disfrutados: aNumero(habilesDisfrutados),
+        habiles_pagos: aNumero(habilesPagos),
+        total_dias_disfrutados: aNumero(totalDiasDisfrutados),
         compensacion_dinero: Number(compensacion) || 0,
         comentario,
       });
@@ -148,42 +164,21 @@ function FormularioToma({ valoresIniciales, salario, onGuardar }) {
             required
           />
         </Field>
-        <Field label="Hábiles disfrutados">
-          <Input
-            type="number"
-            min="0"
-            step="1"
-            value={habilesDisfrutados}
-            onChange={(e) => soloPositivo(e.target.value) && setHabilesDisfrutados(e.target.value)}
-            required
-          />
+        <Field label="Hábiles disfrutados" hint="Acepta decimales: 0,5 = medio día">
+          <InputDecimal value={habilesDisfrutados} onChange={setHabilesDisfrutados} required />
         </Field>
         <Field label="Hábiles pagos">
-          <Input
-            type="number"
-            min="0"
-            step="1"
-            value={habilesPagos}
-            onChange={(e) => soloPositivo(e.target.value) && cambiarHabilesPagos(e.target.value)}
-            required
-          />
+          <InputDecimal value={habilesPagos} onChange={setHabilesPagos} required />
         </Field>
         <Field label="Total días disfrutados" hint="Informativo">
-          <Input
-            type="number"
-            min="0"
-            step="1"
-            value={totalDiasDisfrutados}
-            onChange={(e) => soloPositivo(e.target.value) && setTotalDiasDisfrutados(e.target.value)}
-          />
+          <InputDecimal value={totalDiasDisfrutados} onChange={setTotalDiasDisfrutados} />
         </Field>
-        <Field label="Compensación">
+        <Field label="Compensación en dinero" hint="En pesos; no depende de los hábiles pagos">
           <Input
             type="number"
             min="0"
-            step="0.01"
+            step="any"
             value={compensacion}
-            disabled={!(Number(habilesPagos) > 0)}
             onChange={(e) => soloPositivo(e.target.value) && setCompensacion(e.target.value)}
           />
         </Field>
@@ -201,6 +196,7 @@ function FormularioToma({ valoresIniciales, salario, onGuardar }) {
 
 function FormularioEditarPeriodo({ periodo, onGuardar }) {
   const [datos, setDatos] = useState({
+    periodo_pago_inicio: periodo.periodo_pago_inicio,
     estado: periodo.estado,
     comentario: periodo.comentario || '',
     fecha_liquidacion: periodo.fecha_liquidacion || '',
@@ -227,6 +223,17 @@ function FormularioEditarPeriodo({ periodo, onGuardar }) {
 
   return (
     <form onSubmit={enviar} className="flex flex-col gap-4">
+      <Field
+        label="Fecha de causación (inicio del periodo)"
+        hint="Si la cambias, el año se recalcula desde la nueva fecha. Las tomas, suspensiones y licencias se conservan."
+      >
+        <Input
+          type="date"
+          value={datos.periodo_pago_inicio}
+          onChange={(e) => actualizar('periodo_pago_inicio', e.target.value)}
+          required
+        />
+      </Field>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field label="Estado">
           <select
@@ -400,7 +407,7 @@ export default function DetallePeriodo() {
       <div className="mb-6 grid grid-cols-2 gap-4 rounded-lg border border-border bg-card p-5 sm:grid-cols-4">
         <div>
           <p className="text-xs text-muted-foreground">Días pendientes</p>
-          <p className="tabular-nums text-3xl font-semibold text-foreground">{periodo.dias_pendientes}</p>
+          <p className="tabular-nums text-3xl font-semibold text-foreground">{formatearNumero(periodo.dias_pendientes)}</p>
         </div>
         <div>
           <p className="mb-1 text-xs text-muted-foreground">Estado</p>
@@ -442,7 +449,6 @@ export default function DetallePeriodo() {
         renderFormulario={(item, cerrar) => (
           <FormularioToma
             valoresIniciales={item}
-            salario={periodo.salario_trabajador}
             onGuardar={async (datos) => {
               if (item) await api.editarToma(id, item.id, datos);
               else await api.agregarToma(id, datos);

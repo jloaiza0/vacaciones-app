@@ -4,7 +4,7 @@ import { api } from '../api/cliente';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
-import { formatearFecha } from '@/lib/formato';
+import { formatearFecha, formatearNumero } from '@/lib/formato';
 import { ArrowLeft, ChevronRight, CalendarX } from 'lucide-react';
 
 function badgeEstado(estado) {
@@ -77,7 +77,7 @@ export default function ConsultaTrabajador() {
                   <td className="px-4 py-3">
                     <Badge className={badgeEstado(p.estado)}>{p.estado}</Badge>
                   </td>
-                  <td className="tabular-nums px-4 py-3 text-muted-foreground">{p.dias_pendientes}</td>
+                  <td className="tabular-nums px-4 py-3 text-muted-foreground">{formatearNumero(p.dias_pendientes)}</td>
                   <td className="px-4 py-3 text-right">
                     <Link to={`/consulta/periodos/${p.id}`} className="text-muted-foreground">
                       <ChevronRight className="ml-auto size-4" />

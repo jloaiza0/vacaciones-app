@@ -19,6 +19,12 @@ function hoyLocalISO() {
   return `${d.getFullYear()}-${mes}-${dia}`;
 }
 
+// Los días pueden tener decimales (0,5 = medio día). Se redondea a 2 decimales para que
+// las sumas no arrastren errores de punto flotante (0,1 + 0,2 daría 0,30000000000000004).
+function redondear2(numero) {
+  return Math.round((Number(numero) + Number.EPSILON) * 100) / 100;
+}
+
 // Crea un periodo nuevo: 15 días, estado inicial "Sin vencer"
 function generarPeriodo(trabajadorId, fechaCausacion) {
   const db = obtenerConexion();
@@ -44,13 +50,14 @@ function recalcularPeriodo(periodoId) {
   const suspensiones = db.prepare('SELECT * FROM suspensiones_contrato WHERE periodo_id = ?').all(periodoId);
   const licencias = db.prepare('SELECT * FROM licencias_no_remuneradas WHERE periodo_id = ?').all(periodoId);
 
-  const habilesDisfrutados = tomas.reduce((acc, t) => acc + t.habiles_disfrutados, 0);
-  const habilesPagos = tomas.reduce((acc, t) => acc + t.habiles_pagos, 0);
-  const totalDiasDisfrutados = tomas.reduce((acc, t) => acc + t.total_dias_disfrutados, 0);
-  const totalSC = suspensiones.reduce((acc, s) => acc + s.dias, 0);
+  const sumar = (lista, campo) => redondear2(lista.reduce((acc, fila) => acc + fila[campo], 0));
+  const habilesDisfrutados = sumar(tomas, 'habiles_disfrutados');
+  const habilesPagos = sumar(tomas, 'habiles_pagos');
+  const totalDiasDisfrutados = sumar(tomas, 'total_dias_disfrutados');
+  const totalSC = suspensiones.reduce((acc, s) => acc + s.dias, 0); // SC y LNR: días enteros
   const totalLNR = licencias.reduce((acc, l) => acc + l.dias, 0);
 
-  const diasPendientes = Math.max(DIAS_GENERADOS_POR_CICLO - (habilesDisfrutados + habilesPagos), 0);
+  const diasPendientes = Math.max(redondear2(DIAS_GENERADOS_POR_CICLO - (habilesDisfrutados + habilesPagos)), 0);
   // periodo_pago_fin se corre directo desde la base, sin arrastrar corridas anteriores
   const periodoPagoFin = sumarDias(periodo.periodo_pago_fin_base, totalSC + totalLNR);
 
@@ -107,7 +114,7 @@ function diasDisponiblesParaToma(periodoId, tomaIdExcluir) {
     .prepare('SELECT habiles_disfrutados, habiles_pagos FROM tomas_vacaciones WHERE id = ?')
     .get(tomaIdExcluir);
   const restaba = tomaVieja ? tomaVieja.habiles_disfrutados + tomaVieja.habiles_pagos : 0;
-  return periodo.dias_pendientes + restaba;
+  return redondear2(periodo.dias_pendientes + restaba);
 }
 
 module.exports = {
@@ -117,5 +124,7 @@ module.exports = {
   diasDisponiblesParaToma,
   sumarDias,
   hoyLocalISO,
+  redondear2,
   DIAS_GENERADOS_POR_CICLO,
+  DIAS_CICLO,
 };

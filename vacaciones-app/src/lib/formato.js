@@ -19,8 +19,15 @@ export function formatearDinero(valor) {
   }).format(Number(valor));
 }
 
-// "1 día" / "2 días"
+// Número con coma decimal y hasta 2 decimales: 14,5 · 0,5 · 15
+export function formatearNumero(valor) {
+  const numero = Number(valor);
+  if (!Number.isFinite(numero)) return '—';
+  return new Intl.NumberFormat('es-CO', { maximumFractionDigits: 2 }).format(numero);
+}
+
+// "1 día" / "2 días" / "0,5 días"
 export function pluralDias(n) {
   const numero = Number(n) || 0;
-  return `${numero} ${numero === 1 ? 'día' : 'días'}`;
+  return `${formatearNumero(numero)} ${numero === 1 ? 'día' : 'días'}`;
 }
