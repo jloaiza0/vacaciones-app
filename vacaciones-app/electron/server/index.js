@@ -11,7 +11,6 @@ const authRoutes = require('./routes/auth');
 const trabajadoresRoutes = require('./routes/trabajadores');
 const periodosRoutes = require('./routes/periodos');
 const consultaRoutes = require('./routes/consulta');
-const importadorRoutes = require('./routes/importador');
 const respaldosRoutes = require('./routes/respaldos');
 
 const PUERTO = process.env.PUERTO || 4321;
@@ -56,7 +55,6 @@ setInterval(tareasPeriodicas, 60 * 60 * 1000);
 app.use('/api/auth', authRoutes);
 app.use('/api/trabajadores', requireAuth, trabajadoresRoutes);
 app.use('/api/periodos', requireAuth, periodosRoutes);
-app.use('/api/importador', requireAuth, importadorRoutes);
 app.use('/api/respaldos', requireAuth, respaldosRoutes);
 app.use('/api/consulta', consultaRoutes); // sin login: solo lectura, campos limitados
 
