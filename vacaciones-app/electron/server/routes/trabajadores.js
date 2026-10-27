@@ -1,12 +1,34 @@
 const express = require('express');
 const { obtenerConexion } = require('../db/connection');
+const { hoyLocalISO } = require('../services/calculoVacaciones');
+const { normalizarCedula, parsearSalario, fechaISOValida } = require('../utils/texto');
 
 const router = express.Router();
 
-function fechaIngresoValida(fecha) {
-  if (!fecha) return false;
-  const hoy = new Date().toISOString().slice(0, 10);
-  return fecha <= hoy;
+// Valida y limpia lo que llega del formulario. Devuelve { datos } o { error }.
+function validarTrabajador(cuerpo) {
+  const cedula = normalizarCedula(cuerpo.cedula);
+  const nombre = String(cuerpo.nombre ?? '').trim().replace(/\s+/g, ' ');
+  const fechaIngreso = cuerpo.fecha_ingreso;
+
+  if (!cedula) return { error: 'La cédula es obligatoria' };
+  if (!nombre) return { error: 'El nombre es obligatorio' };
+  if (!fechaISOValida(fechaIngreso)) return { error: 'La fecha de ingreso no es válida' };
+  if (fechaIngreso > hoyLocalISO()) return { error: 'La fecha de ingreso no puede ser posterior a hoy' };
+
+  const salario = parsearSalario(cuerpo.salario);
+  if (!salario.ok) {
+    return { error: 'El salario no es válido. Escribe solo números, por ejemplo 3200000 o 3.200.000' };
+  }
+
+  const firmado = cuerpo.firmado ? String(cuerpo.firmado).trim() : 'No';
+  return { datos: { cedula, nombre, fecha_ingreso: fechaIngreso, firmado, salario: salario.valor } };
+}
+
+function mensajeCedulaRepetida(existente) {
+  return existente.activo
+    ? `Ya existe un trabajador con esa cédula: ${existente.nombre}.`
+    : `Ya existe un trabajador con esa cédula: ${existente.nombre} (inactivo). Búscalo en "Inactivos" o "Todos".`;
 }
 
 router.get('/', (req, res) => {
@@ -30,31 +52,40 @@ router.get('/:id', (req, res) => {
 });
 
 router.post('/', (req, res) => {
+  const { datos, error } = validarTrabajador(req.body);
+  if (error) return res.status(400).json({ error });
+
   const db = obtenerConexion();
-  const { cedula, nombre, fecha_ingreso, firmado, salario } = req.body;
-  if (!fechaIngresoValida(fecha_ingreso)) {
-    return res.status(400).json({ error: 'La fecha de ingreso no puede ser posterior a hoy' });
-  }
+  const existente = db.prepare('SELECT nombre, activo FROM trabajadores WHERE cedula = ?').get(datos.cedula);
+  if (existente) return res.status(409).json({ error: mensajeCedulaRepetida(existente) });
+
   const info = db
     .prepare(
       `INSERT INTO trabajadores (cedula, nombre, fecha_ingreso, firmado, salario)
        VALUES (?, ?, ?, ?, ?)`
     )
-    .run(cedula, nombre, fecha_ingreso, firmado, salario);
+    .run(datos.cedula, datos.nombre, datos.fecha_ingreso, datos.firmado, datos.salario);
   res.status(201).json({ id: info.lastInsertRowid });
 });
 
 router.put('/:id', (req, res) => {
+  const { datos, error } = validarTrabajador(req.body);
+  if (error) return res.status(400).json({ error });
+
   const db = obtenerConexion();
-  const { cedula, nombre, fecha_ingreso, firmado, salario } = req.body;
-  if (!fechaIngresoValida(fecha_ingreso)) {
-    return res.status(400).json({ error: 'La fecha de ingreso no puede ser posterior a hoy' });
+  if (!db.prepare('SELECT id FROM trabajadores WHERE id = ?').get(req.params.id)) {
+    return res.status(404).json({ error: 'No encontrado' });
   }
+  const existente = db
+    .prepare('SELECT nombre, activo FROM trabajadores WHERE cedula = ? AND id != ?')
+    .get(datos.cedula, req.params.id);
+  if (existente) return res.status(409).json({ error: mensajeCedulaRepetida(existente) });
+
   db.prepare(
     `UPDATE trabajadores SET cedula=?, nombre=?, fecha_ingreso=?, firmado=?, salario=?,
        actualizado_en = datetime('now')
      WHERE id = ?`
-  ).run(cedula, nombre, fecha_ingreso, firmado, salario, req.params.id);
+  ).run(datos.cedula, datos.nombre, datos.fecha_ingreso, datos.firmado, datos.salario, req.params.id);
   res.json({ ok: true });
 });
 

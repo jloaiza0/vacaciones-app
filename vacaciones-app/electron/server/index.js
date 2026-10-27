@@ -4,6 +4,7 @@ const path = require('path');
 const bcrypt = require('bcryptjs');
 const { obtenerConexion } = require('./db/connection');
 const { requireAuth } = require('./middleware/auth');
+const { apiNoEncontrada, manejarErrores } = require('./middleware/errores');
 const { actualizarEstadosPorVencimiento } = require('./services/calculoVacaciones');
 const { asegurarRespaldoDiario } = require('./services/respaldos');
 
@@ -57,9 +58,12 @@ app.use('/api/trabajadores', requireAuth, trabajadoresRoutes);
 app.use('/api/periodos', requireAuth, periodosRoutes);
 app.use('/api/respaldos', requireAuth, respaldosRoutes);
 app.use('/api/consulta', consultaRoutes); // sin login: solo lectura, campos limitados
+app.use('/api', apiNoEncontrada); // cualquier /api/... que no exista responde JSON, no una página HTML
 
 // Sirve el front ya compilado (npm run build:web) cuando la app está empaquetada
 app.use(express.static(path.join(__dirname, '../../dist')));
+
+app.use(manejarErrores); // siempre al final: errores no previstos, en JSON y sin detalles internos
 
 app.listen(PUERTO, '0.0.0.0', () => {
   console.log(`Servidor escuchando en el puerto ${PUERTO} (accesible desde la red local)`);

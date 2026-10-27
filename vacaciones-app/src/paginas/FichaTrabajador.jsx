@@ -37,7 +37,7 @@ function FormularioEditarTrabajador({ trabajador, onGuardar }) {
     nombre: trabajador.nombre,
     fecha_ingreso: trabajador.fecha_ingreso,
     firmado: trabajador.firmado || 'No',
-    salario: trabajador.salario ?? '',
+    salario: trabajador.salario != null ? String(trabajador.salario) : '',
   });
   const [error, setError] = useState('');
   const [cargando, setCargando] = useState(false);
@@ -55,7 +55,7 @@ function FormularioEditarTrabajador({ trabajador, onGuardar }) {
     setError('');
     setCargando(true);
     try {
-      await onGuardar({ ...datos, salario: Number(datos.salario) || null });
+      await onGuardar(datos);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -91,7 +91,7 @@ function FormularioEditarTrabajador({ trabajador, onGuardar }) {
             <option value="Si">Sí</option>
           </select>
         </Field>
-        <Field label="Salario" className="col-span-2">
+        <Field label="Salario" className="col-span-2" hint="Puedes escribirlo con puntos: 3.200.000">
           <Input value={datos.salario} onChange={(e) => actualizar('salario', e.target.value)} />
         </Field>
       </div>

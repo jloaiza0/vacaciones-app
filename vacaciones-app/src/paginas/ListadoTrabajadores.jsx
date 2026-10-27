@@ -13,6 +13,21 @@ import { Plus, Search, Users, Loader2Icon } from 'lucide-react';
 
 const HOY = new Date().toISOString().slice(0, 10);
 
+// Búsqueda que no distingue tildes ni mayúsculas ("ramirez" encuentra "Ramírez") y que
+// ignora puntos y espacios al buscar por cédula ("1.094.123" encuentra "1094123456").
+const sinTildes = (texto) => String(texto ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+const soloCedula = (texto) => String(texto ?? '').replace(/[.,\s]/g, '').toUpperCase();
+
+function coincide(trabajador, busqueda) {
+  const q = busqueda.trim();
+  if (!q) return true;
+  const cedulaBuscada = soloCedula(q);
+  return (
+    sinTildes(trabajador.nombre).includes(sinTildes(q)) ||
+    (cedulaBuscada !== '' && String(trabajador.cedula).includes(cedulaBuscada))
+  );
+}
+
 function FormularioNuevoTrabajador({ onCreado }) {
   const [datos, setDatos] = useState({ cedula: '', nombre: '', fecha_ingreso: '', firmado: 'No', salario: '' });
   const [error, setError] = useState('');
@@ -31,7 +46,9 @@ function FormularioNuevoTrabajador({ onCreado }) {
     setError('');
     setCargando(true);
     try {
-      const respuesta = await api.crearTrabajador({ ...datos, salario: Number(datos.salario) || null });
+      // El salario se manda tal cual lo escribió la persona; el servidor lo interpreta
+      // (3200000, 3.200.000, $3.200.000...) o avisa si no lo entiende.
+      const respuesta = await api.crearTrabajador(datos);
       if (!respuesta?.id) {
         setError('El servidor no devolvió el id del trabajador creado.');
         return;
@@ -72,7 +89,7 @@ function FormularioNuevoTrabajador({ onCreado }) {
             <option value="Si">Sí</option>
           </select>
         </Field>
-        <Field label="Salario" className="col-span-2">
+        <Field label="Salario" className="col-span-2" hint="Puedes escribirlo con puntos: 3.200.000">
           <Input value={datos.salario} onChange={(e) => actualizar('salario', e.target.value)} />
         </Field>
       </div>
@@ -103,9 +120,7 @@ export default function ListadoTrabajadores() {
     api.listarTrabajadores(filtro).then(setTrabajadores);
   }, [filtro]);
 
-  const visibles = (trabajadores || []).filter(
-    (t) => t.nombre.toLowerCase().includes(busqueda.toLowerCase()) || t.cedula.includes(busqueda)
-  );
+  const visibles = (trabajadores || []).filter((t) => coincide(t, busqueda));
 
   function trabajadorCreado(id) {
     setDialogoAbierto(false);
@@ -169,7 +184,11 @@ export default function ListadoTrabajadores() {
                 <tr
                   key={t.id}
                   onClick={() => navegar(`/trabajadores/${t.id}`)}
-                  className="cursor-pointer border-t border-border transition-colors duration-150 hover:bg-muted/40"
+                  onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && navegar(`/trabajadores/${t.id}`)}
+                  tabIndex={0}
+                  role="button"
+                  aria-label={`Ver ficha de ${t.nombre}`}
+                  className="cursor-pointer border-t border-border transition-colors duration-150 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
                 >
                   <td className="px-4 py-3 font-medium text-foreground">{t.nombre}</td>
                   <td className="px-4 py-3 tabular-nums text-muted-foreground">{t.cedula}</td>

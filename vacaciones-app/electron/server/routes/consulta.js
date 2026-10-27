@@ -1,22 +1,27 @@
 const express = require('express');
 const { obtenerConexion } = require('../db/connection');
+const { normalizarCedula, sinTildes } = require('../utils/texto');
 
 const router = express.Router();
 
-// Lista de trabajadores activos (solo nombre y cédula) que coinciden con la búsqueda
+// Lista de trabajadores activos (solo nombre y cédula) que coinciden con la búsqueda.
+// No distingue tildes ni mayúsculas, y la cédula se busca sin puntos ni espacios.
 router.get('/trabajadores', (req, res) => {
   const db = obtenerConexion();
-  const { q } = req.query;
+  const q = String(req.query.q ?? '').trim();
 
   const filas = db
     .prepare('SELECT id, nombre, cedula FROM trabajadores WHERE activo = 1 ORDER BY nombre')
     .all();
+  if (!q) return res.json(filas);
 
-  const filtradas = q
-    ? filas.filter((f) => f.nombre.toLowerCase().includes(q.toLowerCase()) || f.cedula.includes(q))
-    : filas;
-
-  res.json(filtradas);
+  const buscado = sinTildes(q);
+  const buscadaCedula = normalizarCedula(q);
+  res.json(
+    filas.filter(
+      (f) => sinTildes(f.nombre).includes(buscado) || (buscadaCedula !== '' && f.cedula.includes(buscadaCedula))
+    )
+  );
 });
 
 // Periodos de un trabajador puntual (sin salario ni datos internos del trabajador)
