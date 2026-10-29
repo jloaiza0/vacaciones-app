@@ -1,6 +1,7 @@
 const express = require('express');
 const { obtenerConexion } = require('../db/connection');
 const { hoyLocalISO } = require('../services/calculoVacaciones');
+const { crearRespaldoSeguridad } = require('../services/respaldos');
 const { normalizarCedula, parsearSalario, fechaISOValida } = require('../utils/texto');
 
 const router = express.Router();
@@ -89,7 +90,7 @@ router.put('/:id', (req, res) => {
   res.json({ ok: true });
 });
 
-// Soft delete: nunca se borra de verdad desde acá
+// Desactivar (lo normal): el trabajador y todo su historial se conservan
 router.delete('/:id', (req, res) => {
   const db = obtenerConexion();
   db.prepare("UPDATE trabajadores SET activo = 0, actualizado_en = datetime('now') WHERE id = ?").run(
@@ -104,6 +105,47 @@ router.post('/:id/activar', (req, res) => {
     req.params.id
   );
   res.json({ ok: true });
+});
+
+// Borrado DEFINITIVO, para un trabajador creado por error. Solo se permite si ya está
+// inactivo (dos pasos a propósito), y antes se guarda una copia de seguridad: si esa copia
+// falla, no se borra nada. Borra también sus periodos, tomas, suspensiones y licencias.
+router.delete('/:id/definitivo', async (req, res, next) => {
+  try {
+    const db = obtenerConexion();
+    const trabajador = db.prepare('SELECT id, activo FROM trabajadores WHERE id = ?').get(req.params.id);
+    if (!trabajador) return res.status(404).json({ error: 'No encontrado' });
+    if (trabajador.activo) {
+      return res.status(409).json({
+        error: 'Primero desactiva al trabajador. El borrado definitivo solo se permite para trabajadores inactivos.',
+      });
+    }
+
+    const borrados = db
+      .prepare(
+        `SELECT
+           (SELECT COUNT(*) FROM periodos_vacaciones WHERE trabajador_id = @id) AS periodos,
+           (SELECT COUNT(*) FROM tomas_vacaciones WHERE periodo_id IN
+              (SELECT id FROM periodos_vacaciones WHERE trabajador_id = @id)) AS tomas,
+           (SELECT COUNT(*) FROM suspensiones_contrato WHERE periodo_id IN
+              (SELECT id FROM periodos_vacaciones WHERE trabajador_id = @id)) AS suspensiones,
+           (SELECT COUNT(*) FROM licencias_no_remuneradas WHERE periodo_id IN
+              (SELECT id FROM periodos_vacaciones WHERE trabajador_id = @id)) AS licencias`
+      )
+      .get({ id: req.params.id });
+
+    const copia = await crearRespaldoSeguridad();
+    if (!copia.local.ok) {
+      return res.status(500).json({
+        error: `No se borró nada: no se pudo guardar la copia de seguridad previa (${copia.local.error})`,
+      });
+    }
+
+    db.prepare('DELETE FROM trabajadores WHERE id = ?').run(req.params.id); // cascada
+    res.json({ ok: true, borrados });
+  } catch (err) {
+    next(err);
+  }
 });
 
 module.exports = router;

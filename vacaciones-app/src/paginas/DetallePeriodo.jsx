@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { api } from '../api/cliente';
 import { Button } from '@/components/ui/button';
@@ -28,6 +28,19 @@ function badgeEstado(estado) {
     Anticipadas: 'bg-accent text-accent-foreground',
   };
   return clases[estado] || 'bg-secondary text-secondary-foreground';
+}
+
+// "2 tomas de vacaciones, 1 suspensión de contrato y 1 licencia no remunerada"
+function resumirContenido(periodo) {
+  const partes = [];
+  const agregar = (cantidad, singular, plural) => {
+    if (cantidad > 0) partes.push(`${cantidad} ${cantidad === 1 ? singular : plural}`);
+  };
+  agregar(periodo.tomas.length, 'toma de vacaciones', 'tomas de vacaciones');
+  agregar(periodo.suspensiones.length, 'suspensión de contrato', 'suspensiones de contrato');
+  agregar(periodo.licencias.length, 'licencia no remunerada', 'licencias no remuneradas');
+  if (partes.length <= 1) return partes[0] ?? '';
+  return `${partes.slice(0, -1).join(', ')} y ${partes[partes.length - 1]}`;
 }
 
 // --- Formularios, todos dentro de un <Dialog> ---
@@ -194,10 +207,17 @@ function FormularioToma({ valoresIniciales, onGuardar }) {
   );
 }
 
+// Qué estado se manda al guardar. Solo "Anticipadas" se decide a mano; los otros tres
+// (Sin vencer, Pendiente, Disfrutado) los calcula el servidor solo.
+function estadoAEnviar(anticipada, estadoActual) {
+  if (anticipada) return 'Anticipadas';
+  return estadoActual === 'Anticipadas' ? 'Sin vencer' : estadoActual;
+}
+
 function FormularioEditarPeriodo({ periodo, onGuardar }) {
   const [datos, setDatos] = useState({
     periodo_pago_inicio: periodo.periodo_pago_inicio,
-    estado: periodo.estado,
+    anticipada: periodo.estado === 'Anticipadas',
     comentario: periodo.comentario || '',
     fecha_liquidacion: periodo.fecha_liquidacion || '',
   });
@@ -213,7 +233,12 @@ function FormularioEditarPeriodo({ periodo, onGuardar }) {
     setError('');
     setCargando(true);
     try {
-      await onGuardar(datos);
+      await onGuardar({
+        periodo_pago_inicio: datos.periodo_pago_inicio,
+        estado: estadoAEnviar(datos.anticipada, periodo.estado),
+        comentario: datos.comentario,
+        fecha_liquidacion: datos.fecha_liquidacion,
+      });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -234,32 +259,33 @@ function FormularioEditarPeriodo({ periodo, onGuardar }) {
           required
         />
       </Field>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Field label="Estado">
-          <select
-            value={datos.estado}
-            onChange={(e) => actualizar('estado', e.target.value)}
-            className="h-9 rounded-md border border-input bg-transparent px-3 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <option value="Sin vencer">Sin vencer</option>
-            <option value="Pendiente">Pendiente</option>
-            <option value="Disfrutado">Disfrutado</option>
-            <option value="Anticipadas">Anticipadas</option>
-          </select>
-        </Field>
-        <Field label="Fecha de liquidación">
-          <div className="flex gap-2">
-            <Input
-              type="date"
-              value={datos.fecha_liquidacion}
-              onChange={(e) => actualizar('fecha_liquidacion', e.target.value)}
-            />
-            <Button type="button" variant="ghost" onClick={() => actualizar('fecha_liquidacion', '')}>
-              Limpiar
-            </Button>
-          </div>
-        </Field>
-      </div>
+      <Field label="Fecha de liquidación">
+        <div className="flex gap-2">
+          <Input
+            type="date"
+            value={datos.fecha_liquidacion}
+            onChange={(e) => actualizar('fecha_liquidacion', e.target.value)}
+          />
+          <Button type="button" variant="ghost" onClick={() => actualizar('fecha_liquidacion', '')}>
+            Limpiar
+          </Button>
+        </div>
+      </Field>
+      <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border p-3 text-sm">
+        <input
+          type="checkbox"
+          checked={datos.anticipada}
+          onChange={(e) => actualizar('anticipada', e.target.checked)}
+          className="mt-0.5 size-4 accent-primary"
+        />
+        <span>
+          <span className="font-medium text-foreground">Periodo anticipado</span>
+          <span className="block text-xs text-muted-foreground">
+            El estado normal (Sin vencer, Pendiente o Disfrutado) se calcula solo. Marca esta casilla solo para
+            vacaciones anticipadas: ese estado no cambia solo.
+          </span>
+        </span>
+      </label>
       <Field label="Comentario">
         <Input
           value={datos.comentario}
@@ -365,8 +391,11 @@ function SeccionRegistros({ titulo, items, vacioTexto, renderCampos, renderFormu
 
 export default function DetallePeriodo() {
   const { id } = useParams();
+  const navegar = useNavigate();
   const [periodo, setPeriodo] = useState(null);
   const [dialogoEditarPeriodo, setDialogoEditarPeriodo] = useState(false);
+  const [dialogoEliminarPeriodo, setDialogoEliminarPeriodo] = useState(false);
+  const [eliminandoPeriodo, setEliminandoPeriodo] = useState(false);
 
   function recargar() {
     api.obtenerPeriodo(id).then(setPeriodo);
@@ -380,6 +409,18 @@ export default function DetallePeriodo() {
     toast.success('Periodo actualizado');
   }
 
+  async function eliminarPeriodo() {
+    setEliminandoPeriodo(true);
+    try {
+      await api.eliminarPeriodo(id);
+      toast.success('Periodo eliminado');
+      navegar(`/trabajadores/${periodo.trabajador_id}`);
+    } catch (err) {
+      toast.error(err.message);
+      setEliminandoPeriodo(false);
+    }
+  }
+
   if (!periodo) {
     return (
       <div className="mx-auto max-w-4xl px-6 py-8">
@@ -389,6 +430,8 @@ export default function DetallePeriodo() {
       </div>
     );
   }
+
+  const contenido = resumirContenido(periodo);
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-8">
@@ -422,10 +465,19 @@ export default function DetallePeriodo() {
           <p className="text-sm text-foreground">{periodo.comentario || '—'}</p>
         </div>
       </div>
-      <div className="mb-8">
+      <div className="mb-8 flex flex-wrap items-center gap-2">
         <Button variant="outline" size="sm" onClick={() => setDialogoEditarPeriodo(true)}>
           <Pencil className="size-3.5" />
           Editar periodo
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-muted-foreground hover:text-destructive"
+          onClick={() => setDialogoEliminarPeriodo(true)}
+        >
+          <Trash2 className="size-3.5" />
+          Eliminar periodo
         </Button>
       </div>
 
@@ -522,6 +574,37 @@ export default function DetallePeriodo() {
             <DialogTitle>Editar periodo</DialogTitle>
           </DialogHeader>
           <FormularioEditarPeriodo periodo={periodo} onGuardar={guardarEdicionPeriodo} />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={dialogoEliminarPeriodo}
+        onOpenChange={(abierto) => !eliminandoPeriodo && setDialogoEliminarPeriodo(abierto)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              ¿Eliminar el periodo {formatearFecha(periodo.periodo_pago_inicio)} –{' '}
+              {formatearFecha(periodo.periodo_pago_fin)}?
+            </DialogTitle>
+            <DialogDescription>
+              {contenido
+                ? `También se eliminarán ${contenido}. Antes se guarda una copia de seguridad automática, pero la app no puede deshacerlo.`
+                : 'El periodo está vacío. Esta acción no se puede deshacer.'}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDialogoEliminarPeriodo(false)}
+              disabled={eliminandoPeriodo}
+            >
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={eliminarPeriodo} disabled={eliminandoPeriodo}>
+              {eliminandoPeriodo ? <Loader2Icon className="size-4 animate-spin" /> : 'Eliminar periodo'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

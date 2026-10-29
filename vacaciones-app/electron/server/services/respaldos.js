@@ -6,12 +6,21 @@ const { hoyLocalISO } = require('./calculoVacaciones');
 
 const CONSERVAR_DIARIOS = 30; // copias diarias que se guardan en cada carpeta
 const CONSERVAR_MANUALES = 10; // copias hechas con "Respaldar ahora"
+const CONSERVAR_SEGURIDAD = 10; // copias automáticas hechas justo antes de borrar algo importante
 const HORAS_PARA_CONSIDERAR_ATRASADO = 48;
 
 // Los patrones son estrictos a propósito: al limpiar copias viejas solo se borran
 // archivos con estos nombres exactos, nunca otros archivos que haya en la carpeta.
 const PATRON_DIARIO = /^vacaciones-\d{4}-\d{2}-\d{2}\.db$/;
-const PATRON_MANUAL = /^vacaciones-\d{4}-\d{2}-\d{2}_\d{4}-manual\.db$/;
+const PATRON_MANUAL = /^vacaciones-\d{4}-\d{2}-\d{2}_\d{4,6}(_\d+)?-manual\.db$/;
+const PATRON_SEGURIDAD = /^vacaciones-\d{4}-\d{2}-\d{2}_\d{4,6}(_\d+)?-antes-de-borrar\.db$/;
+
+// Cada tipo de copia se limpia por separado: las de seguridad no desplazan a las diarias.
+const TIPOS = {
+  diario: { patron: PATRON_DIARIO, conservar: CONSERVAR_DIARIOS },
+  manual: { patron: PATRON_MANUAL, conservar: CONSERVAR_MANUALES },
+  seguridad: { patron: PATRON_SEGURIDAD, conservar: CONSERVAR_SEGURIDAD },
+};
 
 // Último error de cada destino (en memoria; se limpia al lograr un respaldo)
 const ultimoError = { local: null, externa: null };
@@ -49,8 +58,9 @@ function destinos() {
   return lista;
 }
 
-function hhmm(fecha) {
-  return String(fecha.getHours()).padStart(2, '0') + String(fecha.getMinutes()).padStart(2, '0');
+function horaConSegundos(fecha) {
+  const dos = (n) => String(n).padStart(2, '0');
+  return dos(fecha.getHours()) + dos(fecha.getMinutes()) + dos(fecha.getSeconds());
 }
 
 // Abre la copia y comprueba que SQLite la dé por sana. Un respaldo sin verificar
@@ -95,14 +105,11 @@ function rotar(carpeta, patron, conservar) {
 
 async function respaldarEn(destino, nombre, tipo) {
   const db = obtenerConexion();
+  const { patron, conservar } = TIPOS[tipo];
   try {
     const archivo = await copiarA(db, destino.carpeta, nombre);
     try {
-      rotar(
-        destino.carpeta,
-        tipo === 'manual' ? PATRON_MANUAL : PATRON_DIARIO,
-        tipo === 'manual' ? CONSERVAR_MANUALES : CONSERVAR_DIARIOS
-      );
+      rotar(destino.carpeta, patron, conservar);
     } catch (err) {
       console.error(`No se pudieron limpiar copias viejas en ${destino.carpeta}: ${err.message}`);
     }
@@ -137,13 +144,24 @@ function asegurarRespaldoDiario() {
   });
 }
 
-// "Respaldar ahora": copia nueva con la hora en el nombre, para no pisar la del día.
-function crearRespaldoManual() {
+// Nombre con fecha y hora que NO existe todavía en ninguna carpeta. Importante: dos borrados
+// seguidos no pueden compartir copia, porque la segunda ya no contendría lo que se borró primero.
+function nombreLibre(sufijo, carpetas) {
+  const base = `vacaciones-${hoyLocalISO()}_${horaConSegundos(new Date())}`;
+  let nombre = `${base}-${sufijo}.db`;
+  for (let n = 2; carpetas.some((c) => fs.existsSync(path.join(c, nombre))); n++) {
+    nombre = `${base}_${n}-${sufijo}.db`;
+  }
+  return nombre;
+}
+
+// Copia nueva con la hora en el nombre, para no pisar la del día ni otras del mismo tipo.
+function crearRespaldoConHora(tipo, sufijo) {
   return enCola(async () => {
-    const nombre = `vacaciones-${hoyLocalISO()}_${hhmm(new Date())}-manual.db`;
+    const nombre = nombreLibre(sufijo, destinos().map((d) => d.carpeta));
     const resultado = { local: null, externa: { configurada: false } };
     for (const destino of destinos()) {
-      const r = await respaldarEn(destino, nombre, 'manual');
+      const r = await respaldarEn(destino, nombre, tipo);
       if (destino.clave === 'local') resultado.local = r;
       else resultado.externa = { configurada: true, ...r };
     }
@@ -151,11 +169,22 @@ function crearRespaldoManual() {
   });
 }
 
+// "Respaldar ahora"
+function crearRespaldoManual() {
+  return crearRespaldoConHora('manual', 'manual');
+}
+
+// Copia automática justo antes de borrar un periodo con datos o un trabajador. Si esta copia
+// falla, quien la pide NO debe borrar nada.
+function crearRespaldoSeguridad() {
+  return crearRespaldoConHora('seguridad', 'antes-de-borrar');
+}
+
 function momentoUltimaCopia(carpeta) {
   try {
     let masReciente = null;
     for (const nombre of fs.readdirSync(carpeta)) {
-      if (!PATRON_DIARIO.test(nombre) && !PATRON_MANUAL.test(nombre)) continue;
+      if (!PATRON_DIARIO.test(nombre) && !PATRON_MANUAL.test(nombre) && !PATRON_SEGURIDAD.test(nombre)) continue;
       const t = fs.statSync(path.join(carpeta, nombre)).mtimeMs;
       if (masReciente === null || t > masReciente) masReciente = t;
     }
@@ -182,4 +211,4 @@ function estadoRespaldos() {
   };
 }
 
-module.exports = { asegurarRespaldoDiario, crearRespaldoManual, estadoRespaldos };
+module.exports = { asegurarRespaldoDiario, crearRespaldoManual, crearRespaldoSeguridad, estadoRespaldos };

@@ -17,9 +17,22 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { formatearFecha, formatearDinero, formatearNumero } from '@/lib/formato';
-import { ArrowLeft, Plus, Pencil, UserX, UserCheck, ChevronRight, Loader2Icon, CalendarX } from 'lucide-react';
+import {
+  ArrowLeft,
+  Plus,
+  Pencil,
+  UserX,
+  UserCheck,
+  Trash2,
+  ChevronRight,
+  Loader2Icon,
+  CalendarX,
+} from 'lucide-react';
 
 const HOY = new Date().toISOString().slice(0, 10);
+
+// Cédula sin puntos, comas ni espacios y en mayúsculas, para comparar lo que se escribe
+const soloCedula = (texto) => String(texto ?? '').replace(/[.,\s]/g, '').toUpperCase();
 
 function badgeEstado(estado) {
   const clases = {
@@ -151,6 +164,9 @@ export default function FichaTrabajador() {
   const [dialogoNuevoPeriodo, setDialogoNuevoPeriodo] = useState(false);
   const [dialogoActivo, setDialogoActivo] = useState(false);
   const [procesandoActivo, setProcesandoActivo] = useState(false);
+  const [dialogoBorrar, setDialogoBorrar] = useState(false);
+  const [confirmacion, setConfirmacion] = useState('');
+  const [borrando, setBorrando] = useState(false);
 
   function recargar() {
     setErrorCarga('');
@@ -184,6 +200,18 @@ export default function FichaTrabajador() {
     }
   }
 
+  async function borrarDefinitivamente() {
+    setBorrando(true);
+    try {
+      await api.eliminarTrabajadorDefinitivo(id);
+      toast.success('Trabajador eliminado definitivamente');
+      navegar('/');
+    } catch (err) {
+      toast.error(err.message);
+      setBorrando(false);
+    }
+  }
+
   async function crearPeriodo(fecha) {
     await api.crearPeriodo({ trabajador_id: id, periodo_pago_inicio: fecha });
     setDialogoNuevoPeriodo(false);
@@ -208,6 +236,11 @@ export default function FichaTrabajador() {
       </div>
     );
   }
+
+  // Borrado definitivo: si tiene periodos hay que escribir su cédula para confirmar
+  const cantidadPeriodos = trabajador.periodos.length;
+  const requiereConfirmar = cantidadPeriodos > 0;
+  const confirmacionLista = !requiereConfirmar || soloCedula(confirmacion) === soloCedula(trabajador.cedula);
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-8">
@@ -248,23 +281,38 @@ export default function FichaTrabajador() {
           <Pencil className="size-4" />
           Editar datos
         </Button>
-        <Button
-          variant="ghost"
-          className="ml-auto text-muted-foreground hover:text-destructive"
-          onClick={() => setDialogoActivo(true)}
-        >
-          {trabajador.activo ? (
-            <>
-              <UserX className="size-4" />
-              Desactivar trabajador
-            </>
-          ) : (
-            <>
-              <UserCheck className="size-4" />
-              Activar trabajador
-            </>
+        <div className="ml-auto flex flex-wrap items-center gap-1">
+          {!trabajador.activo && (
+            <Button
+              variant="ghost"
+              className="text-muted-foreground hover:text-destructive"
+              onClick={() => {
+                setConfirmacion('');
+                setDialogoBorrar(true);
+              }}
+            >
+              <Trash2 className="size-4" />
+              Eliminar definitivamente
+            </Button>
           )}
-        </Button>
+          <Button
+            variant="ghost"
+            className="text-muted-foreground hover:text-destructive"
+            onClick={() => setDialogoActivo(true)}
+          >
+            {trabajador.activo ? (
+              <>
+                <UserX className="size-4" />
+                Desactivar trabajador
+              </>
+            ) : (
+              <>
+                <UserCheck className="size-4" />
+                Activar trabajador
+              </>
+            )}
+          </Button>
+        </div>
       </div>
 
       <h2 className="mb-2 text-sm font-medium text-foreground">Periodos</h2>
@@ -360,6 +408,32 @@ export default function FichaTrabajador() {
               ) : (
                 'Activar'
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={dialogoBorrar} onOpenChange={(abierto) => !borrando && setDialogoBorrar(abierto)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>¿Eliminar definitivamente a {trabajador.nombre}?</DialogTitle>
+            <DialogDescription>
+              {requiereConfirmar
+                ? `Se borrarán también sus ${cantidadPeriodos} ${cantidadPeriodos === 1 ? 'periodo' : 'periodos'} con todas sus tomas, suspensiones y licencias. Antes se guarda una copia de seguridad automática, pero la app no puede deshacerlo. Si solo dejó de trabajar aquí, lo correcto es dejarlo inactivo.`
+                : 'No tiene periodos. Esta acción no se puede deshacer.'}
+            </DialogDescription>
+          </DialogHeader>
+          {requiereConfirmar && (
+            <Field label={`Para confirmar, escribe su cédula: ${trabajador.cedula}`}>
+              <Input value={confirmacion} onChange={(e) => setConfirmacion(e.target.value)} autoComplete="off" />
+            </Field>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogoBorrar(false)} disabled={borrando}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={borrarDefinitivamente} disabled={borrando || !confirmacionLista}>
+              {borrando ? <Loader2Icon className="size-4 animate-spin" /> : 'Eliminar definitivamente'}
             </Button>
           </DialogFooter>
         </DialogContent>

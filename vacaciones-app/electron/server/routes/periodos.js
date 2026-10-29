@@ -8,6 +8,7 @@ const {
   redondear2,
   DIAS_CICLO,
 } = require('../services/calculoVacaciones');
+const { crearRespaldoSeguridad } = require('../services/respaldos');
 
 const router = express.Router();
 
@@ -54,6 +55,8 @@ router.get('/:id', (req, res) => {
   res.json(periodo);
 });
 
+// El único estado que se decide a mano es "Anticipadas"; los otros tres se calculan solos
+// en recalcularPeriodo, así que cualquier otro estado que llegue aquí se recalcula.
 router.put('/:id', (req, res) => {
   const db = obtenerConexion();
   const { fecha_liquidacion, estado, comentario, periodo_pago_inicio } = req.body;
@@ -95,10 +98,38 @@ router.put('/:id', (req, res) => {
   res.json(recalcularPeriodo(req.params.id));
 });
 
-router.delete('/:id', (req, res) => {
-  const db = obtenerConexion();
-  db.prepare('DELETE FROM periodos_vacaciones WHERE id = ?').run(req.params.id); // cascada: borra tomas/SC/LNR
-  res.json({ ok: true });
+// Eliminar un periodo borra también sus tomas, suspensiones y licencias (cascada).
+// Si tiene algo adentro, antes se guarda una copia de seguridad; si esa copia falla,
+// no se borra nada.
+router.delete('/:id', async (req, res, next) => {
+  try {
+    const db = obtenerConexion();
+    if (!db.prepare('SELECT id FROM periodos_vacaciones WHERE id = ?').get(req.params.id)) {
+      return res.status(404).json({ error: 'Periodo no encontrado' });
+    }
+
+    const contar = (tabla) =>
+      db.prepare(`SELECT COUNT(*) AS n FROM ${tabla} WHERE periodo_id = ?`).get(req.params.id).n;
+    const borrados = {
+      tomas: contar('tomas_vacaciones'),
+      suspensiones: contar('suspensiones_contrato'),
+      licencias: contar('licencias_no_remuneradas'),
+    };
+
+    if (borrados.tomas + borrados.suspensiones + borrados.licencias > 0) {
+      const copia = await crearRespaldoSeguridad();
+      if (!copia.local.ok) {
+        return res.status(500).json({
+          error: `No se borró nada: no se pudo guardar la copia de seguridad previa (${copia.local.error})`,
+        });
+      }
+    }
+
+    db.prepare('DELETE FROM periodos_vacaciones WHERE id = ?').run(req.params.id);
+    res.json({ ok: true, borrados });
+  } catch (err) {
+    next(err);
+  }
 });
 
 // --- Tomas de vacaciones ---
